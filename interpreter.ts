@@ -1,0 +1,173 @@
+import { 
+    BinaryOperationNode,
+    FunctionCallNode, 
+    FunctionDeclarationNode, 
+    FunctionParameterNode, 
+    LiteralNumberNode, 
+    NodeType, 
+    Parser, 
+    ReturnExpressionNode, 
+    TypeNode, 
+    VariableDeclarationNode, 
+    VariableNode
+} from "./parser";
+import { Node } from "./parser";
+
+const functionDeclarations: {[key: string]: FunctionDeclarationNode} = {};
+const systemFunctions = ['print'];
+
+class Result {
+    value: number;
+    type: string;
+    node: Node;
+
+    constructor(value, type, node) {
+        this.value = value;
+        this.type = type;
+        this.node = node;
+    }
+
+    public getValue(): number {
+        return this.value;
+    }
+}
+
+export class Interpreter {
+    constructor (
+        private parser: Parser
+    ) {}
+
+    interpret (): void {
+        const tree = this.parser.parseAll();
+        let pos = 0;
+        const globalContext = {};
+        while (pos < tree.length) {
+            const node = tree[pos];
+            this.visitNode(node, globalContext);
+            pos++;
+        }
+    }
+
+    visitNode(node: Node, context: any): Result {
+        switch (node.nodeType) {
+            case NodeType.FunctionDeclaration: 
+                return this.visitFunctionDeclarationNode(node as FunctionDeclarationNode);
+            case NodeType.FunctionCall:
+                return this.visitFunctionCallNode(node as FunctionCallNode, context);
+            case NodeType.VariableDeclaration:
+                return this.visitVariableDeclarationNode(node as VariableDeclarationNode, context);
+            case NodeType.BinaryOperation:
+                return this.visitBinaryOperationNode(node as BinaryOperationNode, context);
+            case NodeType.Variable:
+                return this.visitVariableNode(node as VariableNode, context);
+            case NodeType.LiteralNumber:
+                return this.visitLiteralNumberNode(node as LiteralNumberNode);
+            case NodeType.ReturnExpression:
+                return this.visitReturnExpressionNode(node as ReturnExpressionNode, context);
+            default:
+                throw new Error(`Cannot visit node of type: ${node.nodeType}`);
+        }
+    }
+
+    visitReturnExpressionNode(node: ReturnExpressionNode, context: any): any {
+        return this.visitNode(node.expression, context);
+    }
+
+    visitVariableNode(node: VariableNode, context: any): any {
+        return context[node.name];
+    }
+
+    visitBinaryOperationNode(node: BinaryOperationNode, context: any): Result {
+        const left = this.visitNode(node.leftOperand, context);
+        const right = this.visitNode(node.rightOperand, context);
+        if (left === undefined || left.value === undefined 
+         || right === undefined || right.value === undefined) {
+            throw new Error(`One of the operands used in the "${node.operator.operator}" operation is undefined`);
+        }
+        switch (node.operator.operator) {
+            case "+": 
+                return new Result(left.value + right.value, 'int', node);
+            case "-":
+                return new Result(left.value - right.value, 'int', node);
+            case "*": 
+                return new Result(left.value * right.value, 'int', node);
+            case "/":
+                return new Result(left.value / right.value, 'int', node);
+            default:
+                throw new Error(`Unknown operator: ${(node as any).operator}`);
+        }
+    }
+
+    visitVariableDeclarationNode(node: VariableDeclarationNode, context: any): Result {
+        node.value = this.visitNode(node.valueNode, context);
+        context[node.name] = node.value;
+        return new Result(node.value, node.type, node);
+    }
+
+    visitFunctionDeclarationNode(node: FunctionDeclarationNode): Result {
+        functionDeclarations[node.name] = node;
+        return new Result(undefined, 'undefined', node);
+    }
+
+    visitFunctionCallNode(node: FunctionCallNode, parentContext: any): Result {
+        if (systemFunctions.includes(node.name)) {
+            this.executeSystemFunction(node, parentContext);
+            return undefined;
+        }
+
+        const func = functionDeclarations[node.name];
+        if (!func) {
+            throw new Error(`Function ${node.name} is not defined`);
+        }
+        const argumentValues = this.resolveFunctionArgumentValues(node.arguments, func.parameters, parentContext);
+        const functionContext = {};
+        argumentValues.forEach(argument => {
+            functionContext[argument.name] = argument.value;
+        });
+        const results = func.body.statements.map(n => this.visitNode(n, functionContext));
+
+        return results[results.length - 1];
+    }
+
+    createFunctionContext(
+        argumentValues: Array<{
+            name: string,
+            value: Result
+        }>
+    ): any {
+        const functionContext = {};
+        argumentValues.forEach(argument => {
+            functionContext[argument.name] = argument.value;
+        });
+        return functionContext;
+    }
+
+    resolveFunctionArgumentValues(args: Node[], argDefinitions: FunctionParameterNode[], context: any): Array<{
+        name: string,
+        value: Result
+    }> {
+        const argumentValues = args.map((arg, index) => {
+            const argName = argDefinitions[index].name;
+            return {
+                name: argName,
+                value: this.visitNode(arg, context)
+            };
+        });
+        return argumentValues;
+    }
+
+    visitLiteralNumberNode(node: LiteralNumberNode): Result {
+        return new Result(node.value, 'int', node);
+    }
+
+    executeSystemFunction(node: FunctionCallNode, context: any): void {
+        switch (node.name) {
+            case 'print':
+                const functionParams = [
+                    new FunctionParameterNode('toPrint', new TypeNode('int'))
+                ];
+                const argumentValues = this.resolveFunctionArgumentValues(node.arguments, functionParams, context);
+                console.log(argumentValues[0].value.getValue());
+        }
+    }
+}
