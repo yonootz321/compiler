@@ -75,7 +75,7 @@ class Interpreter {
             case "/":
                 return new Result(left.value / right.value, 'int', node);
             default:
-                throw new Error(`Unknown operator: ${node.operator}`);
+                throw new Error(`Unknown operator: ${node.operator.operator}`);
         }
     }
     visitAssignmentNode(node, context) {
@@ -88,7 +88,7 @@ class Interpreter {
             node.value = this.visitNode(node.valueNode, context);
             context[node.name] = node.value;
         }
-        return new Result(node.value, node.type, node);
+        return new Result(node.value, 'int', node);
     }
     visitFunctionDeclarationNode(node) {
         functionDeclarations[node.name] = node;
@@ -138,10 +138,15 @@ class Interpreter {
         switch (node.name) {
             case 'print':
                 const functionParams = [
-                    new parser_1.FunctionParameterNode('toPrint', new parser_1.TypeNode('int'))
+                    new parser_1.FunctionParameterNode('arg1', new parser_1.TypeNode('int')),
+                    new parser_1.FunctionParameterNode('arg2', new parser_1.TypeNode('int')),
+                    new parser_1.FunctionParameterNode('arg3', new parser_1.TypeNode('int')),
+                    new parser_1.FunctionParameterNode('arg4', new parser_1.TypeNode('int')),
+                    new parser_1.FunctionParameterNode('arg5', new parser_1.TypeNode('int'))
                 ];
                 const argumentValues = this.resolveFunctionArgumentValues(node.arguments, functionParams, context);
-                console.log(argumentValues[0].value.getValue());
+                const values = argumentValues.map(arg => arg.value.getValue());
+                console.log(...values);
         }
     }
 }

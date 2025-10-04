@@ -23,9 +23,9 @@ function rightPriority(int a, int b, int c): int {
     return a + b * c;
 }
 
-print(sum(5, 6));
-print(sub(7, 3));
-print(mul(3, 5));
-print(div(8, 4));
-print(leftPriority(2, 3, 4));
-print(rightPriority(2, 3, 4));
+print("sum =", sum(5, 6));
+print("difference =", sub(7, 3));
+print("product =", mul(3, 5));
+print("division =", div(8, 4));
+print("multiplication_first =", leftPriority(2, 3, 4));
+print("addition_first =", rightPriority(2, 3, 4));

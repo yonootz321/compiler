@@ -300,9 +300,9 @@ class Parser {
         if (this.peek().type === scanner_1.TokenType.Equal) {
             this.consumeType(scanner_1.TokenType.Equal);
             const initialValue = this.parseExpression(availableVariables);
-            return new VariableDeclarationNode(nameToken.value, new TypeNode('int'), initialValue);
+            return new VariableDeclarationNode(nameToken.value, new TypeNode('implied'), initialValue);
         }
-        return new VariableDeclarationNode(nameToken.value, new TypeNode('int'));
+        return new VariableDeclarationNode(nameToken.value, new TypeNode('undefined'));
     }
     parseFunctionCall(availableVariables) {
         const nameToken = this.consumeType(scanner_1.TokenType.Identifier);

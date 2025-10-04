@@ -18,18 +18,22 @@ import { Node } from "./parser";
 const functionDeclarations: {[key: string]: FunctionDeclarationNode} = {};
 const systemFunctions = ['print'];
 
+type Context = {
+    [key: string]: Result;
+}
+
 class Result {
-    value: number;
+    value: number | string;
     type: string;
     node: Node;
 
-    constructor(value, type, node) {
+    constructor(value: number | string, type: string, node: Node) {
         this.value = value;
         this.type = type;
         this.node = node;
     }
 
-    public getValue(): number {
+    public getValue(): string | number {
         return this.value;
     }
 }
@@ -50,7 +54,7 @@ export class Interpreter {
         }
     }
 
-    visitNode(node: Node, context: any): Result {
+    visitNode(node: Node, context: Context): Result {
         switch (node.nodeType) {
             case NodeType.FunctionDeclaration: 
                 return this.visitFunctionDeclarationNode(node as FunctionDeclarationNode);
@@ -75,15 +79,15 @@ export class Interpreter {
         }
     }
 
-    visitReturnExpressionNode(node: ReturnExpressionNode, context: any): any {
+    visitReturnExpressionNode(node: ReturnExpressionNode, context: Context): Result {
         return this.visitNode(node.expression, context);
     }
 
-    visitVariableNode(node: VariableNode, context: any): any {
+    visitVariableNode(node: VariableNode, context: Context): Result {
         return context[node.name];
     }
 
-    visitBinaryOperationNode(node: BinaryOperationNode, context: any): Result {
+    visitBinaryOperationNode(node: BinaryOperationNode, context: Context): Result {
         const left = this.visitNode(node.leftOperand, context);
         const right = this.visitNode(node.rightOperand, context);
         if (left === undefined || left.value === undefined 
@@ -91,31 +95,35 @@ export class Interpreter {
             throw new Error(`One of the operands used in the "${node.operator.operator}" operation is undefined`);
         }
         switch (node.operator.operator) {
-            case "+": 
+            case "+":
+                // @ts-ignore Intentionally allowing string and numbers to combine
                 return new Result(left.value + right.value, 'int', node);
             case "-":
+                // @ts-ignore Intentionally allowing string and numbers to combine
                 return new Result(left.value - right.value, 'int', node);
             case "*": 
+                // @ts-ignore Intentionally allowing string and numbers to combine
                 return new Result(left.value * right.value, 'int', node);
             case "/":
+                // @ts-ignore Intentionally allowing string and numbers to combine
                 return new Result(left.value / right.value, 'int', node);
             default:
-                throw new Error(`Unknown operator: ${(node as any).operator}`);
+                throw new Error(`Unknown operator: ${node.operator.operator}`);
         }
     }
 
-    visitAssignmentNode(node: AssignmentNode, context: any): Result {
+    visitAssignmentNode(node: AssignmentNode, context: Context): Result {
         const value = this.visitNode(node.expression, context);
         context[node.variable.name] = value;
         return value;
     }
 
-    visitVariableDeclarationNode(node: VariableDeclarationNode, context: any): Result {
+    visitVariableDeclarationNode(node: VariableDeclarationNode, context: Context): Result {
         if (node.valueNode !== undefined) {
             node.value = this.visitNode(node.valueNode, context);
             context[node.name] = node.value;
         }
-        return new Result(node.value, node.type, node);
+        return new Result(node.value, 'int', node);
     }
 
     visitFunctionDeclarationNode(node: FunctionDeclarationNode): Result {
@@ -123,7 +131,7 @@ export class Interpreter {
         return new Result(undefined, 'undefined', node);
     }
 
-    visitFunctionCallNode(node: FunctionCallNode, parentContext: any): Result {
+    visitFunctionCallNode(node: FunctionCallNode, parentContext: Context): Result {
         if (systemFunctions.includes(node.name)) {
             this.executeSystemFunction(node, parentContext);
             return undefined;
@@ -148,7 +156,7 @@ export class Interpreter {
             name: string,
             value: Result
         }>
-    ): any {
+    ): Context {
         const functionContext = {};
         argumentValues.forEach(argument => {
             functionContext[argument.name] = argument.value;
@@ -156,7 +164,7 @@ export class Interpreter {
         return functionContext;
     }
 
-    resolveFunctionArgumentValues(args: Node[], argDefinitions: FunctionParameterNode[], context: any): Array<{
+    resolveFunctionArgumentValues(args: Node[], argDefinitions: FunctionParameterNode[], context: Context): Array<{
         name: string,
         value: Result
     }> {
@@ -178,14 +186,19 @@ export class Interpreter {
         return new Result(node.value, 'string', node);
     }
 
-    executeSystemFunction(node: FunctionCallNode, context: any): void {
+    executeSystemFunction(node: FunctionCallNode, context: Context): void {
         switch (node.name) {
             case 'print':
                 const functionParams = [
-                    new FunctionParameterNode('toPrint', new TypeNode('int'))
+                    new FunctionParameterNode('arg1', new TypeNode('int')),
+                    new FunctionParameterNode('arg2', new TypeNode('int')),
+                    new FunctionParameterNode('arg3', new TypeNode('int')),
+                    new FunctionParameterNode('arg4', new TypeNode('int')),
+                    new FunctionParameterNode('arg5', new TypeNode('int'))
                 ];
                 const argumentValues = this.resolveFunctionArgumentValues(node.arguments, functionParams, context);
-                console.log(argumentValues[0].value.getValue());
+                const values = argumentValues.map(arg => arg.value.getValue());
+                console.log(...values);
         }
     }
 }

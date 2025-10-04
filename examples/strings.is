@@ -4,5 +4,5 @@ function concat(string a, string b): string {
     return c;
 }
 
-print(concat("Pa", "ula"));
-print(55 + "66");
+print("string + string =", concat("Pa", "ula"));
+print("number + string =", 55 + "66");
