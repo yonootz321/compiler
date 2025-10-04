@@ -6,6 +6,7 @@ var TokenType;
     TokenType["Function"] = "Function";
     TokenType["Identifier"] = "Identifier";
     TokenType["Number"] = "Number";
+    TokenType["String"] = "String";
     TokenType["Type"] = "Type";
     TokenType["Keyword"] = "Keyword";
     TokenType["Operator"] = "Operator";
@@ -25,6 +26,7 @@ var TokenType;
 })(TokenType = exports.TokenType || (exports.TokenType = {}));
 const typeKeywords = [
     'int',
+    'string',
 ];
 const keywords = [
     'var',
@@ -115,6 +117,18 @@ class Scanner {
             if (char === '/') {
                 this.pos++;
                 return new Token(TokenType.Slash, '/');
+            }
+            if (char === '"') {
+                const start = this.pos + 1;
+                let end = this.pos + 1;
+                while (end < inputText.length && inputText[end] !== '"') {
+                    end++;
+                }
+                if (inputText[end] == '"') {
+                    this.pos = end + 1;
+                    return new Token(TokenType.String, inputText.substring(start, end));
+                }
+                throw new Error("Unterminated string");
             }
             if (/[a-zA-Z_]/.test(char)) {
                 let start = this.pos;

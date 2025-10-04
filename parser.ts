@@ -20,7 +20,9 @@ export enum NodeType {
     BinaryOperation = 'BinaryOperation',
     Type = 'Type',
     LiteralNumber = 'LiteralNumber',
+    LiteralString = 'LiteralString',
     ReturnExpression = 'ReturnExpression',
+    Assignment = 'Assignment',
 }
 
 const operatorTokens = [
@@ -28,6 +30,7 @@ const operatorTokens = [
     TokenType.Minus,
     TokenType.Star,
     TokenType.Slash,
+    TokenType.Equal,
 ];
 
 export class Node {
@@ -115,6 +118,16 @@ export class LiteralNumberNode extends Node {
     }
 }
 
+export class LiteralStringNode extends Node {
+    value: string;
+
+    constructor(value: string) {
+        super();
+        this.nodeType = NodeType.LiteralString;
+        this.value = value;
+    }
+}
+
 export class VariableDeclarationNode extends Node {
     name: string;
     type: TypeNode;
@@ -180,6 +193,18 @@ export class ReturnExpressionNode extends Node {
     }
 }
 
+export class AssignmentNode extends Node {
+    variable: VariableNode;
+    expression: Node;
+
+    constructor(variable: VariableNode, expression: Node) {
+        super();
+        this.nodeType = NodeType.Assignment;
+        this.variable = variable;
+        this.expression = expression;
+    }
+}
+
 export class Parser {
     private scanner: Scanner;
 
@@ -224,18 +249,24 @@ export class Parser {
                 if (this.isFunctionName(token)) {
                     return this.parseFunctionCall(availableVariables);
                 }
-                const nextToken = this.peek(2);
                 if (this.isVariableName(token, availableVariables)) {
+                    const nextToken = this.peek(2);
                     if (!operatorTokens.includes(nextToken.type)) {
-                        this.consumeType(TokenType.Identifier);
-                        return new VariableNode(token.value, new TypeNode('int'));
+                        return this.parseVariable();
+                    }
+                    if (nextToken.type === TokenType.Equal) {
+                        return this.parseAssignment(availableVariables);
                     }
                     return this.parseMathExpression(availableVariables);
                 }
                 throw new Error(`Unexpected identifier: "${token.value}"`);
             case TokenType.Number:
-                this.consumeType(TokenType.Number);
-                return new LiteralNumberNode(parseInt(token.value));
+            case TokenType.String:
+                const nextToken = this.peek(2);
+                if (operatorTokens.includes(nextToken.type)) {
+                    return this.parseMathExpression(availableVariables);
+                }
+                return this.parseLiteral();
             case TokenType.Keyword:
                 if (this.isReturnExpression(token)) {
                     return this.parseReturnExpression(availableVariables);
@@ -287,9 +318,11 @@ export class Parser {
         return leftNode;
     }
 
-    private parseFactor(availableVariables: Array<string>): VariableNode {
-        const variableNode = this.consumeType(TokenType.Identifier);
-        return new VariableNode(variableNode.value, new TypeNode('int'));
+    private parseFactor(availableVariables: Array<string>): Node {
+        if (this.isVariable()) {
+            return this.parseVariable();
+        }
+        return this.parseLiteral();
     }
 
     private isVariableName(token: Token, availableVariables: Array<string>): boolean {
@@ -300,15 +333,48 @@ export class Parser {
             );
     }
 
+    private parseLiteral(): Node {
+        const token = this.peek();
+        switch (token.type) {
+            case TokenType.Number:
+                this.consumeType(TokenType.Number);
+                return new LiteralNumberNode(parseInt(token.value));
+            case TokenType.String:
+                this.consumeType(TokenType.String);
+                return new LiteralStringNode(token.value);
+            default:
+                throw new Error(`Uknown literal type ${token.type} ("${token.value}")`);
+        }
+    }
+
+    private isVariable(): boolean {
+        return this.peek().type === TokenType.Identifier;
+    }
+
+    private parseAssignment(availableVariables: Array<string>): AssignmentNode {
+        const variable = this.parseVariable();
+        this.consumeType(TokenType.Equal);
+        const rightValue = this.parseExpression(availableVariables);
+        return new AssignmentNode(variable, rightValue);
+    }
+
+    private parseVariable(): VariableNode {
+        const token = this.consumeType(TokenType.Identifier);
+        return new VariableNode(token.value, new TypeNode('int'));
+    }
+
     private parseVariableDeclaration(availableVariables: Array<string>): VariableDeclarationNode {
         if (this.peek().type !== TokenType.Keyword || this.peek().value !== 'var') {
             throw new Error(`Expected 'var' keyword but got ${this.peek().value}`);
         }
         this.consumeType(TokenType.Keyword); // consume 'var'
         const nameToken = this.consumeType(TokenType.Identifier);
-        this.consumeType(TokenType.Equal);
-        const initialValue = this.parseExpression(availableVariables);
-        return new VariableDeclarationNode(nameToken.value, new TypeNode('int'), initialValue);
+        if (this.peek().type === TokenType.Equal) {
+            this.consumeType(TokenType.Equal);
+            const initialValue = this.parseExpression(availableVariables);
+            return new VariableDeclarationNode(nameToken.value, new TypeNode('int'), initialValue);
+        }
+        return new VariableDeclarationNode(nameToken.value, new TypeNode('int'));
     }
 
     private parseFunctionCall(availableVariables: Array<string>): FunctionCallNode {

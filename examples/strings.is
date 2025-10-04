@@ -1,0 +1,8 @@
+function concat(string a, string b): string {
+    var c;
+    c = a + b;
+    return c;
+}
+
+print(concat("Pa", "ula"));
+print(55 + "66");

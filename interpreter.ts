@@ -1,9 +1,11 @@
 import { 
+    AssignmentNode,
     BinaryOperationNode,
     FunctionCallNode, 
     FunctionDeclarationNode, 
     FunctionParameterNode, 
     LiteralNumberNode, 
+    LiteralStringNode, 
     NodeType, 
     Parser, 
     ReturnExpressionNode, 
@@ -56,12 +58,16 @@ export class Interpreter {
                 return this.visitFunctionCallNode(node as FunctionCallNode, context);
             case NodeType.VariableDeclaration:
                 return this.visitVariableDeclarationNode(node as VariableDeclarationNode, context);
+            case NodeType.Assignment:
+                return this.visitAssignmentNode(node as AssignmentNode, context);
             case NodeType.BinaryOperation:
                 return this.visitBinaryOperationNode(node as BinaryOperationNode, context);
             case NodeType.Variable:
                 return this.visitVariableNode(node as VariableNode, context);
             case NodeType.LiteralNumber:
                 return this.visitLiteralNumberNode(node as LiteralNumberNode);
+            case NodeType.LiteralString:
+                return this.visitLiteralStringNode(node as LiteralStringNode);
             case NodeType.ReturnExpression:
                 return this.visitReturnExpressionNode(node as ReturnExpressionNode, context);
             default:
@@ -98,9 +104,17 @@ export class Interpreter {
         }
     }
 
+    visitAssignmentNode(node: AssignmentNode, context: any): Result {
+        const value = this.visitNode(node.expression, context);
+        context[node.variable.name] = value;
+        return value;
+    }
+
     visitVariableDeclarationNode(node: VariableDeclarationNode, context: any): Result {
-        node.value = this.visitNode(node.valueNode, context);
-        context[node.name] = node.value;
+        if (node.valueNode !== undefined) {
+            node.value = this.visitNode(node.valueNode, context);
+            context[node.name] = node.value;
+        }
         return new Result(node.value, node.type, node);
     }
 
@@ -158,6 +172,10 @@ export class Interpreter {
 
     visitLiteralNumberNode(node: LiteralNumberNode): Result {
         return new Result(node.value, 'int', node);
+    }
+
+    visitLiteralStringNode(node: LiteralStringNode): Result {
+        return new Result(node.value, 'string', node);
     }
 
     executeSystemFunction(node: FunctionCallNode, context: any): void {

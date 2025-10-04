@@ -36,12 +36,16 @@ class Interpreter {
                 return this.visitFunctionCallNode(node, context);
             case parser_1.NodeType.VariableDeclaration:
                 return this.visitVariableDeclarationNode(node, context);
+            case parser_1.NodeType.Assignment:
+                return this.visitAssignmentNode(node, context);
             case parser_1.NodeType.BinaryOperation:
                 return this.visitBinaryOperationNode(node, context);
             case parser_1.NodeType.Variable:
                 return this.visitVariableNode(node, context);
             case parser_1.NodeType.LiteralNumber:
                 return this.visitLiteralNumberNode(node);
+            case parser_1.NodeType.LiteralString:
+                return this.visitLiteralStringNode(node);
             case parser_1.NodeType.ReturnExpression:
                 return this.visitReturnExpressionNode(node, context);
             default:
@@ -74,9 +78,16 @@ class Interpreter {
                 throw new Error(`Unknown operator: ${node.operator}`);
         }
     }
+    visitAssignmentNode(node, context) {
+        const value = this.visitNode(node.expression, context);
+        context[node.variable.name] = value;
+        return value;
+    }
     visitVariableDeclarationNode(node, context) {
-        node.value = this.visitNode(node.valueNode, context);
-        context[node.name] = node.value;
+        if (node.valueNode !== undefined) {
+            node.value = this.visitNode(node.valueNode, context);
+            context[node.name] = node.value;
+        }
         return new Result(node.value, node.type, node);
     }
     visitFunctionDeclarationNode(node) {
@@ -119,6 +130,9 @@ class Interpreter {
     }
     visitLiteralNumberNode(node) {
         return new Result(node.value, 'int', node);
+    }
+    visitLiteralStringNode(node) {
+        return new Result(node.value, 'string', node);
     }
     executeSystemFunction(node, context) {
         switch (node.name) {

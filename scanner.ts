@@ -2,6 +2,7 @@ export enum TokenType {
     Function = 'Function',
     Identifier = 'Identifier',
     Number = 'Number',
+    String = 'String',
     Type = 'Type',
     Keyword = 'Keyword',
     Operator = 'Operator',
@@ -22,6 +23,7 @@ export enum TokenType {
 
 const typeKeywords = [
     'int',
+    'string',
 ];
 
 const keywords = [
@@ -150,6 +152,19 @@ export class Scanner {
             if (char === '/') {
                 this.pos++;
                 return new Token(TokenType.Slash, '/');
+            }
+
+            if (char === '"') {
+                const start = this.pos + 1;
+                let end = this.pos+1;
+                while (end < inputText.length && inputText[end] !== '"') {
+                    end++;
+                }
+                if (inputText[end] == '"') {
+                    this.pos = end + 1;
+                    return new Token(TokenType.String, inputText.substring(start, end));
+                }
+                throw new Error("Unterminated string");
             }
 
             // Match identifiers and keywords
