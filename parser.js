@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.Parser = exports.AssignmentNode = exports.ReturnExpressionNode = exports.BinaryOperationNode = exports.VariableNode = exports.VariableDeclarationNode = exports.LiteralStringNode = exports.LiteralNumberNode = exports.FunctionCallNode = exports.TypeNode = exports.FunctionBodyNode = exports.FunctionParameterNode = exports.FunctionDeclarationNode = exports.Node = exports.NodeType = void 0;
+exports.Parser = exports.IfStatementNode = exports.AssignmentNode = exports.ReturnExpressionNode = exports.BinaryOperationNode = exports.VariableNode = exports.VariableDeclarationNode = exports.LiteralBooleanNode = exports.LiteralStringNode = exports.LiteralNumberNode = exports.FunctionCallNode = exports.TypeNode = exports.FunctionBodyNode = exports.FunctionParameterNode = exports.FunctionDeclarationNode = exports.Node = exports.NodeType = void 0;
 const scanner_1 = require("./scanner");
 const builtInFunctionNames = [
     'print',
@@ -20,8 +20,10 @@ var NodeType;
     NodeType["Type"] = "Type";
     NodeType["LiteralNumber"] = "LiteralNumber";
     NodeType["LiteralString"] = "LiteralString";
+    NodeType["LiteralBoolean"] = "LiteralBoolean";
     NodeType["ReturnExpression"] = "ReturnExpression";
     NodeType["Assignment"] = "Assignment";
+    NodeType["IfStatement"] = "IfStatement";
 })(NodeType = exports.NodeType || (exports.NodeType = {}));
 const operatorTokens = [
     scanner_1.TokenType.Plus,
@@ -29,6 +31,10 @@ const operatorTokens = [
     scanner_1.TokenType.Star,
     scanner_1.TokenType.Slash,
     scanner_1.TokenType.Equal,
+    scanner_1.TokenType.EqualEqual,
+];
+const blockStatements = [
+    NodeType.IfStatement,
 ];
 class Node {
 }
@@ -98,6 +104,14 @@ class LiteralStringNode extends Node {
     }
 }
 exports.LiteralStringNode = LiteralStringNode;
+class LiteralBooleanNode extends Node {
+    constructor(value) {
+        super();
+        this.nodeType = NodeType.LiteralBoolean;
+        this.value = value;
+    }
+}
+exports.LiteralBooleanNode = LiteralBooleanNode;
 class VariableDeclarationNode extends Node {
     constructor(name, type, initialValue) {
         super();
@@ -153,6 +167,15 @@ class AssignmentNode extends Node {
     }
 }
 exports.AssignmentNode = AssignmentNode;
+class IfStatementNode extends Node {
+    constructor(condition, body) {
+        super();
+        this.nodeType = NodeType.IfStatement;
+        this.condition = condition;
+        this.body = body;
+    }
+}
+exports.IfStatementNode = IfStatementNode;
 class Parser {
     constructor(scanner) {
         this.scanner = scanner;
@@ -178,6 +201,9 @@ class Parser {
     }
     parseStatement(localVariables) {
         const expression = this.parseExpression(localVariables);
+        if (blockStatements.includes(expression.nodeType)) {
+            return expression;
+        }
         this.consumeType(scanner_1.TokenType.Semicolon);
         return expression;
     }
@@ -207,13 +233,53 @@ class Parser {
                 }
                 return this.parseLiteral();
             case scanner_1.TokenType.Keyword:
+                if (this.isBooleanLiteral(token)) {
+                    return this.parseBooleanLiteral();
+                }
                 if (this.isReturnExpression(token)) {
                     return this.parseReturnExpression(availableVariables);
+                }
+                if (this.isIfStatement(token)) {
+                    return this.parseIfStatement(availableVariables);
                 }
                 return this.parseVariableDeclaration(availableVariables);
             default:
                 throw new Error(`Unexpected token type in expression: ${token.type} ("${token.value}")`);
         }
+    }
+    parseBooleanLiteral() {
+        const token = this.consumeType(scanner_1.TokenType.Keyword);
+        if (token.value === 'true') {
+            return new LiteralBooleanNode(true);
+        }
+        else if (token.value === 'false') {
+            return new LiteralBooleanNode(false);
+        }
+        else {
+            throw new Error(`Unexpected boolean literal value: "${token.value}"`);
+        }
+    }
+    isBooleanLiteral(token) {
+        return token.type == scanner_1.TokenType.Keyword
+            && (token.value === 'true' || token.value === 'false');
+    }
+    parseIfStatement(availableVariables) {
+        this.consumeType(scanner_1.TokenType.Keyword);
+        this.consumeType(scanner_1.TokenType.OpenParen);
+        const condition = this.parseExpression(availableVariables);
+        this.consumeType(scanner_1.TokenType.CloseParen);
+        const bodyStatements = [];
+        this.consumeType(scanner_1.TokenType.OpenBrace);
+        while (this.peek().type !== scanner_1.TokenType.CloseBrace) {
+            const statement = this.parseStatement(availableVariables);
+            bodyStatements.push(statement);
+        }
+        this.consumeType(scanner_1.TokenType.CloseBrace);
+        const body = new FunctionBodyNode(bodyStatements);
+        return new IfStatementNode(condition, body);
+    }
+    isIfStatement(token) {
+        return token.type == scanner_1.TokenType.Keyword && (token.value === 'if');
     }
     parseReturnExpression(availableVariables) {
         this.consumeType(scanner_1.TokenType.Keyword);
@@ -236,6 +302,11 @@ class Parser {
             this.consumeType(scanner_1.TokenType.Minus);
             const rightNode = this.parseMathExpression(availableVariables);
             return new BinaryOperationNode(leftNode, new OperatorNode('-'), rightNode);
+        }
+        else if (nextToken.type === scanner_1.TokenType.EqualEqual) {
+            this.consumeType(scanner_1.TokenType.EqualEqual);
+            const rightNode = this.parseMathExpression(availableVariables);
+            return new BinaryOperationNode(leftNode, new OperatorNode('=='), rightNode);
         }
         return leftNode;
     }
@@ -274,6 +345,10 @@ class Parser {
             case scanner_1.TokenType.String:
                 this.consumeType(scanner_1.TokenType.String);
                 return new LiteralStringNode(token.value);
+            case scanner_1.TokenType.Keyword:
+                if (this.isBooleanLiteral(token)) {
+                    return this.parseBooleanLiteral();
+                }
             default:
                 throw new Error(`Uknown literal type ${token.type} ("${token.value}")`);
         }

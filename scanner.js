@@ -17,6 +17,7 @@ var TokenType;
     TokenType["CloseParen"] = "CloseParen";
     TokenType["OpenBrace"] = "OpenBrace";
     TokenType["CloseBrace"] = "CloseBrace";
+    TokenType["EqualEqual"] = "EqualEqual";
     TokenType["Equal"] = "Equal";
     TokenType["Plus"] = "Plus";
     TokenType["Minus"] = "Minus";
@@ -27,11 +28,15 @@ var TokenType;
 const typeKeywords = [
     'int',
     'string',
+    'bool',
 ];
 const keywords = [
     'var',
     'function',
     'return',
+    'if',
+    'true',
+    'false',
 ]
     .concat(typeKeywords);
 class Token {
@@ -59,6 +64,7 @@ class Scanner {
         const inputText = this.inputText;
         while (this.pos < inputText.length) {
             const char = inputText[this.pos];
+            const nextChar = inputText[this.pos + 1];
             if (/\s/.test(char)) {
                 this.pos++;
                 continue;
@@ -99,6 +105,10 @@ class Scanner {
                 return new Token(TokenType.Colon, ':');
             }
             if (char === '=') {
+                if (nextChar === '=') {
+                    this.pos += 2;
+                    return new Token(TokenType.EqualEqual, '==');
+                }
                 this.pos++;
                 return new Token(TokenType.Equal, '=');
             }

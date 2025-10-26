@@ -4,6 +4,8 @@ import {
     FunctionCallNode, 
     FunctionDeclarationNode, 
     FunctionParameterNode, 
+    IfStatementNode, 
+    LiteralBooleanNode, 
     LiteralNumberNode, 
     LiteralStringNode, 
     NodeType, 
@@ -22,23 +24,26 @@ type Context = {
     [key: string]: Result;
 }
 
+type ResultValue = number | string | boolean;
 class Result {
-    value: number | string;
+    value: ResultValue;
     type: string;
     node: Node;
 
-    constructor(value: number | string, type: string, node: Node) {
+    constructor(value: ResultValue, type: string, node: Node) {
         this.value = value;
         this.type = type;
         this.node = node;
     }
 
-    public getValue(): string | number {
+    public getValue(): ResultValue {
         return this.value;
     }
 }
 
 export class Interpreter {
+    private returnStatementVisited: boolean = false;
+
     constructor (
         private parser: Parser
     ) {}
@@ -74,12 +79,30 @@ export class Interpreter {
                 return this.visitLiteralStringNode(node as LiteralStringNode);
             case NodeType.ReturnExpression:
                 return this.visitReturnExpressionNode(node as ReturnExpressionNode, context);
+            case NodeType.IfStatement:
+                return this.visitIfStatementNode(node as IfStatementNode, context);
+            case NodeType.LiteralBoolean:
+                return this.visitLiteralBooleanNode(node as LiteralBooleanNode);
             default:
                 throw new Error(`Cannot visit node of type: ${node.nodeType}`);
         }
     }
 
+    visitLiteralBooleanNode(node: LiteralBooleanNode): Result {
+        return new Result(node.value, 'bool', node);
+    }
+
+    visitIfStatementNode(node: IfStatementNode, context: Context): Result {
+        const conditionResult = this.visitNode(node.condition, context);
+        if (conditionResult.value === true) {
+            const results = node.body.statements.map(n => this.visitNode(n, context));
+            return results[results.length - 1];
+        }
+        return new Result(undefined, 'undefined', node);
+    }
+
     visitReturnExpressionNode(node: ReturnExpressionNode, context: Context): Result {
+        this.returnStatementVisited = true;
         return this.visitNode(node.expression, context);
     }
 
@@ -107,6 +130,8 @@ export class Interpreter {
             case "/":
                 // @ts-ignore Intentionally allowing string and numbers to combine
                 return new Result(left.value / right.value, 'int', node);
+            case "==":
+                return new Result(left.value == right.value, 'bool', node);
             default:
                 throw new Error(`Unknown operator: ${node.operator.operator}`);
         }
@@ -146,9 +171,18 @@ export class Interpreter {
         argumentValues.forEach(argument => {
             functionContext[argument.name] = argument.value;
         });
-        const results = func.body.statements.map(n => this.visitNode(n, functionContext));
 
-        return results[results.length - 1];
+        let result = new Result(undefined, 'undefined', node);
+        for (let i = 0; i < func.body.statements.length; i++) {
+            const statement = func.body.statements[i];
+            result = this.visitNode(statement, functionContext);
+            if (this.returnStatementVisited) {
+                this.returnStatementVisited = false;
+                return result;
+            }
+        }
+
+        return result;
     }
 
     createFunctionContext(

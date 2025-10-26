@@ -21,8 +21,10 @@ export enum NodeType {
     Type = 'Type',
     LiteralNumber = 'LiteralNumber',
     LiteralString = 'LiteralString',
+    LiteralBoolean = 'LiteralBoolean',
     ReturnExpression = 'ReturnExpression',
     Assignment = 'Assignment',
+    IfStatement = 'IfStatement',
 }
 
 const operatorTokens = [
@@ -31,6 +33,11 @@ const operatorTokens = [
     TokenType.Star,
     TokenType.Slash,
     TokenType.Equal,
+    TokenType.EqualEqual,
+];
+
+const blockStatements = [
+    NodeType.IfStatement,
 ];
 
 export class Node {
@@ -128,6 +135,16 @@ export class LiteralStringNode extends Node {
     }
 }
 
+export class LiteralBooleanNode extends Node {
+    value: boolean;
+
+    constructor(value: boolean) {
+        super();
+        this.nodeType = NodeType.LiteralBoolean;
+        this.value = value;
+    }
+}
+
 export class VariableDeclarationNode extends Node {
     name: string;
     type: TypeNode;
@@ -205,6 +222,18 @@ export class AssignmentNode extends Node {
     }
 }
 
+export class IfStatementNode extends Node {
+    condition: Node;
+    body: FunctionBodyNode;
+
+    constructor(condition: Node, body: FunctionBodyNode) {
+        super();
+        this.nodeType = NodeType.IfStatement;
+        this.condition = condition;
+        this.body = body;
+    }
+}
+
 export class Parser {
     private scanner: Scanner;
 
@@ -238,6 +267,9 @@ export class Parser {
 
     private parseStatement(localVariables: Array<string>): Node {
         const expression = this.parseExpression(localVariables);
+        if (blockStatements.includes(expression.nodeType)) {
+            return expression;
+        }
         this.consumeType(TokenType.Semicolon);
         return expression;
     }
@@ -268,13 +300,55 @@ export class Parser {
                 }
                 return this.parseLiteral();
             case TokenType.Keyword:
+                if (this.isBooleanLiteral(token)) {
+                    return this.parseBooleanLiteral();
+                }
                 if (this.isReturnExpression(token)) {
                     return this.parseReturnExpression(availableVariables);
+                }
+                if (this.isIfStatement(token)) {
+                    return this.parseIfStatement(availableVariables);
                 }
                 return this.parseVariableDeclaration(availableVariables);
             default:
                 throw new Error(`Unexpected token type in expression: ${token.type} ("${token.value}")`);
         }
+    }
+
+    private parseBooleanLiteral(): LiteralBooleanNode {
+        const token = this.consumeType(TokenType.Keyword);
+        if (token.value === 'true') {
+            return new LiteralBooleanNode(true);
+        } else if (token.value === 'false') {
+            return new LiteralBooleanNode(false);
+        } else {
+            throw new Error(`Unexpected boolean literal value: "${token.value}"`);
+        }
+    }
+
+    private isBooleanLiteral(token: Token): boolean {
+        return token.type == TokenType.Keyword 
+            && (token.value === 'true' || token.value === 'false');
+    }
+
+    private parseIfStatement(availableVariables: Array<string>): Node {
+        this.consumeType(TokenType.Keyword); // consume 'if'
+        this.consumeType(TokenType.OpenParen);
+        const condition = this.parseExpression(availableVariables);
+        this.consumeType(TokenType.CloseParen);
+        const bodyStatements: Node[] = [];
+        this.consumeType(TokenType.OpenBrace);
+        while (this.peek().type !== TokenType.CloseBrace) {
+            const statement = this.parseStatement(availableVariables);
+            bodyStatements.push(statement);
+        }
+        this.consumeType(TokenType.CloseBrace);
+        const body = new FunctionBodyNode(bodyStatements);
+        return new IfStatementNode(condition, body);
+    }
+
+    private isIfStatement(token: Token): boolean {
+        return token.type == TokenType.Keyword && (token.value === 'if');
     }
 
     private parseReturnExpression(availableVariables: Array<string>): ReturnExpressionNode {
@@ -299,6 +373,10 @@ export class Parser {
             this.consumeType(TokenType.Minus);
             const rightNode = this.parseMathExpression(availableVariables);
             return new BinaryOperationNode(leftNode, new OperatorNode('-'), rightNode);
+        } else if (nextToken.type === TokenType.EqualEqual) {
+            this.consumeType(TokenType.EqualEqual);
+            const rightNode = this.parseMathExpression(availableVariables);
+            return new BinaryOperationNode(leftNode, new OperatorNode('=='), rightNode);
         }
         return leftNode;
     }
@@ -342,6 +420,11 @@ export class Parser {
             case TokenType.String:
                 this.consumeType(TokenType.String);
                 return new LiteralStringNode(token.value);
+            case TokenType.Keyword:
+                if (this.isBooleanLiteral(token)) {
+                    return this.parseBooleanLiteral();
+                }
+                // Fall through
             default:
                 throw new Error(`Uknown literal type ${token.type} ("${token.value}")`);
         }

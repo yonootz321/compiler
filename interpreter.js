@@ -17,6 +17,7 @@ class Result {
 class Interpreter {
     constructor(parser) {
         this.parser = parser;
+        this.returnStatementVisited = false;
     }
     interpret() {
         const tree = this.parser.parseAll();
@@ -48,11 +49,27 @@ class Interpreter {
                 return this.visitLiteralStringNode(node);
             case parser_1.NodeType.ReturnExpression:
                 return this.visitReturnExpressionNode(node, context);
+            case parser_1.NodeType.IfStatement:
+                return this.visitIfStatementNode(node, context);
+            case parser_1.NodeType.LiteralBoolean:
+                return this.visitLiteralBooleanNode(node);
             default:
                 throw new Error(`Cannot visit node of type: ${node.nodeType}`);
         }
     }
+    visitLiteralBooleanNode(node) {
+        return new Result(node.value, 'bool', node);
+    }
+    visitIfStatementNode(node, context) {
+        const conditionResult = this.visitNode(node.condition, context);
+        if (conditionResult.value === true) {
+            const results = node.body.statements.map(n => this.visitNode(n, context));
+            return results[results.length - 1];
+        }
+        return new Result(undefined, 'undefined', node);
+    }
     visitReturnExpressionNode(node, context) {
+        this.returnStatementVisited = true;
         return this.visitNode(node.expression, context);
     }
     visitVariableNode(node, context) {
@@ -74,6 +91,8 @@ class Interpreter {
                 return new Result(left.value * right.value, 'int', node);
             case "/":
                 return new Result(left.value / right.value, 'int', node);
+            case "==":
+                return new Result(left.value == right.value, 'bool', node);
             default:
                 throw new Error(`Unknown operator: ${node.operator.operator}`);
         }
@@ -108,8 +127,16 @@ class Interpreter {
         argumentValues.forEach(argument => {
             functionContext[argument.name] = argument.value;
         });
-        const results = func.body.statements.map(n => this.visitNode(n, functionContext));
-        return results[results.length - 1];
+        let result = new Result(undefined, 'undefined', node);
+        for (let i = 0; i < func.body.statements.length; i++) {
+            const statement = func.body.statements[i];
+            result = this.visitNode(statement, functionContext);
+            if (this.returnStatementVisited) {
+                this.returnStatementVisited = false;
+                return result;
+            }
+        }
+        return result;
     }
     createFunctionContext(argumentValues) {
         const functionContext = {};

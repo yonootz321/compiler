@@ -1,0 +1,26 @@
+function isFive(int input): bool {
+    if (input == 5) {
+        return true;
+    }
+    return false;
+}
+
+function isTrue(bool input): bool {
+    return input == true;
+}
+
+function isDuck(string input): bool {
+    if (input == "duck") {
+        return input == "duck";
+    }
+    return false;
+}
+
+print("isFive(2)=", isFive(2));
+print("isFive(5)=", isFive(5));
+
+print("isTrue(false)=", isTrue(false));
+print("isTrue(true)=", isTrue(true));
+
+print("isDuck('cat')=", isDuck("cat"));
+print("isDuck('duck')=", isDuck("duck"));

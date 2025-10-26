@@ -13,6 +13,7 @@ export enum TokenType {
     CloseParen = 'CloseParen',
     OpenBrace = 'OpenBrace',
     CloseBrace = 'CloseBrace',
+    EqualEqual = 'EqualEqual',
     Equal = 'Equal',
     Plus = 'Plus',
     Minus = 'Minus',
@@ -24,12 +25,16 @@ export enum TokenType {
 const typeKeywords = [
     'int',
     'string',
+    'bool',
 ];
 
 const keywords = [
     'var',
     'function',
     'return',
+    'if',
+    'true',
+    'false',
 ]
     .concat(typeKeywords);
 
@@ -66,6 +71,7 @@ export class Scanner {
         const inputText = this.inputText;
         while (this.pos < inputText.length) {
             const char = inputText[this.pos];
+            const nextChar = inputText[this.pos + 1];
 
             // Skip whitespace
             if (/\s/.test(char)) {
@@ -126,6 +132,10 @@ export class Scanner {
 
             // Match equal
             if (char === '=') {
+                if (nextChar === '=') {
+                    this.pos += 2;
+                    return new Token(TokenType.EqualEqual, '==');
+                }
                 this.pos++;
                 return new Token(TokenType.Equal, '=');
             }
