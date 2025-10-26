@@ -22,6 +22,7 @@ export enum NodeType {
     LiteralNumber = 'LiteralNumber',
     LiteralString = 'LiteralString',
     LiteralBoolean = 'LiteralBoolean',
+    LiteralVector = 'LiteralVector',
     ReturnExpression = 'ReturnExpression',
     Assignment = 'Assignment',
     IfStatement = 'IfStatement',
@@ -110,12 +111,14 @@ export class TypeNode extends Node {
 export class FunctionCallNode extends Node {
     name: string;
     arguments: Node[];
+    object?: string;
 
-    constructor(name: string, args: Node[]) {
+    constructor(name: string, args: Node[], object?: string) {
         super();
         this.nodeType = NodeType.FunctionCall;
         this.name = name;
         this.arguments = args;
+        this.object = object;
     }
 }
 
@@ -169,14 +172,16 @@ export class VariableDeclarationNode extends Node {
 export class VariableNode extends Node {
     name: string;
     value: any;
+    index: number | VariableNode;
     type: TypeNode;
 
-    constructor(name: string, type: TypeNode, value?: any) {
+    constructor(name: string, type: TypeNode, value?: any, index?: number | VariableNode) {
         super();
         this.nodeType = NodeType.Variable;
         this.name = name;
         this.type = type;
         this.value = value;
+        this.index = index;
     }
 }
 
@@ -250,6 +255,13 @@ export class WhileStatementNode extends Node {
     }
 }
 
+export class LiteralVectorNode extends Node {
+    constructor() {
+        super();
+        this.nodeType = NodeType.LiteralVector;
+    }
+}
+
 export class Parser {
     private scanner: Scanner;
 
@@ -276,7 +288,7 @@ export class Parser {
                 return this.parseFunctionDeclaration();
             case TokenType.Identifier:
             case TokenType.Keyword:
-                return this.parseStatement([]);
+                return this.parseStatement(userDefinedVariableNames);
             default:
                 throw new Error(`Unexpected token type: ${token.type} ("${token.value}")`);
         }
@@ -300,6 +312,12 @@ export class Parser {
                 }
                 if (this.isVariableName(token, availableVariables)) {
                     const nextToken = this.peek(2);
+                    if (this.isIndexedVariable(token, nextToken, availableVariables)) {
+                        return this.parseIndexedAssignment();
+                    }
+                    if (this.isMethodCall(token, nextToken, availableVariables)) {
+                        return this.parseMethodCall(availableVariables);
+                    }
                     if (!operatorTokens.includes(nextToken.type)) {
                         return this.parseVariable();
                     }
@@ -332,10 +350,52 @@ export class Parser {
                 if (this.isVariableDeclaration(token)) {
                     return this.parseVariableDeclaration(availableVariables);
                 }
+                if (this.isVectorLiteral(token)) {
+                    return this.parseVectorLiteral(token);
+                }
                 throw new Error(`Unexpected keyword: "${token.value}"`);
             default:
                 throw new Error(`Unexpected token type in expression: ${token.type} ("${token.value}")`);
         }
+    }
+
+    private parseMethodCall(availableVariables: Array<string>): Node {
+        const variableToken = this.consumeType(TokenType.Identifier);
+        this.consumeType(TokenType.Dot);
+        const methodToken = this.consumeType(TokenType.Identifier);
+        this.consumeType(TokenType.OpenParen);
+        const args: Node[] = [];
+        while (this.peek().type !== TokenType.CloseParen) {
+            const argument = this.parseExpression(availableVariables);
+            args.push(argument);
+            if (this.peek().type === TokenType.Comma) {
+                this.consumeType(TokenType.Comma);
+            }
+        }
+        this.consumeType(TokenType.CloseParen);
+        return new FunctionCallNode(methodToken.value, args, variableToken.value);
+    }
+
+    private isMethodCall(token: Token, nextToken: Token, availableVariables: Array<string>): boolean {
+        const nextNextToken = this.peek(3);
+        return this.isVariableName(token, availableVariables) 
+            && nextToken.type === TokenType.Dot 
+            && nextNextToken.type === TokenType.Identifier;
+    }
+
+    private isIndexedVariable(token: Token, nextToken: Token, availableVariables: Array<string>): boolean {
+        return this.isVariableName(token, availableVariables) && nextToken.type === TokenType.OpenSquare;
+    }
+
+    private parseVectorLiteral(_token: Token): Node {
+        this.consumeType(TokenType.Keyword); // consume 'vec'
+        this.consumeType(TokenType.OpenSquare);
+        this.consumeType(TokenType.CloseSquare);
+        return new LiteralVectorNode();
+    }
+
+    private isVectorLiteral(token: Token): boolean {
+        return token.type == TokenType.Keyword && (token.value === 'vec');
     }
 
     private parseWhileStatement(availableVariables: Array<string>): Node {
@@ -455,6 +515,12 @@ export class Parser {
 
     private parseFactor(availableVariables: Array<string>): Node {
         if (this.isVariable()) {
+            if (this.peek(2).type === TokenType.Dot) {
+                return this.parseMethodCall(availableVariables);
+            }
+            if (this.peek(2).type === TokenType.OpenSquare) {
+                return this.parseIndexedVariable();
+            }
             return this.parseVariable();
         }
         return this.parseLiteral();
@@ -501,6 +567,49 @@ export class Parser {
     private parseVariable(): VariableNode {
         const token = this.consumeType(TokenType.Identifier);
         return new VariableNode(token.value, new TypeNode('int'));
+    }
+
+    private parseIndexedVariable(): VariableNode {
+        const nameToken = this.consumeType(TokenType.Identifier);
+        this.consumeType(TokenType.OpenSquare);
+        let indexNode = null;
+        if (this.peek().type === TokenType.Number) {
+            indexNode = this.parseLiteral();
+        } else if (this.peek().type === TokenType.Identifier) {
+            indexNode = this.parseVariable();
+        } else {
+            throw new Error(`Inexpected index for vector ${nameToken.value}`);
+        }
+        this.consumeType(TokenType.CloseSquare);
+        return new VariableNode(
+            nameToken.value, 
+            new TypeNode('int'), 
+            undefined, 
+            indexNode
+        );
+    }
+
+    private parseIndexedAssignment(): AssignmentNode {
+        const nameToken = this.consumeType(TokenType.Identifier);
+        this.consumeType(TokenType.OpenSquare);
+        let indexNode = null;
+        if (this.peek().type === TokenType.Number) {
+            indexNode = this.parseLiteral();
+        } else if (this.peek().type === TokenType.Identifier) {
+            indexNode = this.parseVariable();
+        } else {
+            throw new Error(`Inexpected index for vector ${nameToken.value}`);
+        }
+        this.consumeType(TokenType.CloseSquare);
+        const variable = new VariableNode(
+            nameToken.value, 
+            new TypeNode('int'), 
+            undefined, 
+            indexNode
+        );
+        this.consumeType(TokenType.Equal);
+        const expression = this.parseExpression([]);
+        return new AssignmentNode(variable, expression);
     }
 
     private parseVariableDeclaration(availableVariables: Array<string>): VariableDeclarationNode {

@@ -17,6 +17,8 @@ var TokenType;
     TokenType["CloseParen"] = "CloseParen";
     TokenType["OpenBrace"] = "OpenBrace";
     TokenType["CloseBrace"] = "CloseBrace";
+    TokenType["OpenSquare"] = "OpenSquare";
+    TokenType["CloseSquare"] = "CloseSquare";
     TokenType["EqualEqual"] = "EqualEqual";
     TokenType["Equal"] = "Equal";
     TokenType["Plus"] = "Plus";
@@ -25,6 +27,7 @@ var TokenType;
     TokenType["Slash"] = "Slash";
     TokenType["GreaterThan"] = "GreaterThan";
     TokenType["LessThan"] = "LessThan";
+    TokenType["Dot"] = "Dot";
     TokenType["EOF"] = "EOF";
 })(TokenType = exports.TokenType || (exports.TokenType = {}));
 const typeKeywords = [
@@ -40,6 +43,7 @@ const keywords = [
     'while',
     'true',
     'false',
+    'vec',
 ]
     .concat(typeKeywords);
 class Token {
@@ -103,6 +107,18 @@ class Scanner {
                 this.pos++;
                 return new Token(TokenType.CloseBrace, '}');
             }
+            if (char === '[') {
+                this.pos++;
+                return new Token(TokenType.OpenSquare, '[');
+            }
+            if (char === ']') {
+                this.pos++;
+                return new Token(TokenType.CloseSquare, ']');
+            }
+            if (char === '.') {
+                this.pos++;
+                return new Token(TokenType.Dot, '.');
+            }
             if (char === ':') {
                 this.pos++;
                 return new Token(TokenType.Colon, ':');
@@ -162,8 +178,7 @@ class Scanner {
                 }
                 return new Token(TokenType.Identifier, value);
             }
-            console.log('Unexpected character: ', char);
-            this.pos++;
+            throw new Error('Unexpected character: ' + char);
         }
         return new Token(TokenType.EOF, "");
     }

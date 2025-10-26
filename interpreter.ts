@@ -1,3 +1,4 @@
+import { constants } from "buffer";
 import { 
     AssignmentNode,
     BinaryOperationNode,
@@ -8,6 +9,7 @@ import {
     LiteralBooleanNode, 
     LiteralNumberNode, 
     LiteralStringNode, 
+    LiteralVectorNode, 
     NodeType, 
     Parser, 
     ReturnExpressionNode, 
@@ -19,13 +21,13 @@ import {
 import { Node } from "./parser";
 
 const functionDeclarations: {[key: string]: FunctionDeclarationNode} = {};
-const systemFunctions = ['print'];
+const systemFunctions = ['print', 'length'];
 
 type Context = {
     [key: string]: Result;
 }
 
-type ResultValue = number | string | boolean;
+type ResultValue = number | string | boolean | [];
 class Result {
     value: ResultValue;
     type: string;
@@ -86,9 +88,15 @@ export class Interpreter {
                 return this.visitWhileStatementNode(node as WhileStatementNode, context);
             case NodeType.LiteralBoolean:
                 return this.visitLiteralBooleanNode(node as LiteralBooleanNode);
+            case NodeType.LiteralVector:
+                return this.visitLiteralVectorNode(node as LiteralVectorNode, context);
             default:
                 throw new Error(`Cannot visit node of type: ${node.nodeType}`);
         }
+    }
+
+    visitLiteralVectorNode(node: LiteralVectorNode, context: Context): Result {
+        return new Result([], 'vec', node);
     }
 
     visitWhileStatementNode(node: WhileStatementNode, context: Context): Result {
@@ -119,6 +127,17 @@ export class Interpreter {
     }
 
     visitVariableNode(node: VariableNode, context: Context): Result {
+        if (node.index !== undefined) {
+            const indexNode = node.index;
+            if (indexNode instanceof LiteralNumberNode) {
+                return context[node.name][parseInt(indexNode.value)];
+            } else if (indexNode instanceof VariableNode) {
+                const index = this.visitNode(indexNode as VariableNode, context).value as number;
+                const vector = context[node.name].value;
+                return new Result(vector[index as number], 'int', node);
+            }
+            throw new Error(`Invalid index type for variable ${node.name}`);
+        }
         return context[node.name];
     }
 
@@ -154,9 +173,20 @@ export class Interpreter {
     }
 
     visitAssignmentNode(node: AssignmentNode, context: Context): Result {
-        const value = this.visitNode(node.expression, context);
-        context[node.variable.name] = value;
-        return value;
+        const newValue = this.visitNode(node.expression, context);
+        if (node.variable.index !== undefined) {
+            const currentValue = context[node.variable.name].value;
+            if (node.variable.index instanceof LiteralNumberNode) {
+                currentValue[parseInt(node.variable.index.value)] = newValue.value;
+            } else if (node.variable.index instanceof VariableNode) {
+                const indexResult = this.visitNode(node.variable.index as VariableNode, context);
+                currentValue[indexResult.value as number] = newValue.value;
+            }
+            context[node.variable.name] = new Result(currentValue, 'vec', node);
+        } else {
+            context[node.variable.name] = newValue;
+        }
+        return newValue;
     }
 
     visitVariableDeclarationNode(node: VariableDeclarationNode, context: Context): Result {
@@ -174,8 +204,7 @@ export class Interpreter {
 
     visitFunctionCallNode(node: FunctionCallNode, parentContext: Context): Result {
         if (systemFunctions.includes(node.name)) {
-            this.executeSystemFunction(node, parentContext);
-            return undefined;
+            return this.executeSystemFunction(node, parentContext);
         }
 
         const func = functionDeclarations[node.name];
@@ -236,7 +265,7 @@ export class Interpreter {
         return new Result(node.value, 'string', node);
     }
 
-    executeSystemFunction(node: FunctionCallNode, context: Context): void {
+    executeSystemFunction(node: FunctionCallNode, context: Context): Result {
         switch (node.name) {
             case 'print':
                 const functionParams = [
@@ -249,6 +278,19 @@ export class Interpreter {
                 const argumentValues = this.resolveFunctionArgumentValues(node.arguments, functionParams, context);
                 const values = argumentValues.map(arg => arg.value.getValue());
                 console.log(...values);
+                break;
+            case 'length':
+                const objectName = node.object;
+                if (objectName === undefined || objectName === null) {
+                    throw new Error(`'length' function must be called on an object`);
+                }
+                const objectNode = context[objectName];
+                //console.log(objectName, objectNode);
+                if (objectNode.type !== 'vec') {
+                    throw new Error(`'length' function can only be called on vectors`);
+                }
+                const vectorValue = objectNode.getValue() as [];
+                return new Result(vectorValue.length, 'int', node);
         }
     }
 }

@@ -3,7 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.Interpreter = void 0;
 const parser_1 = require("./parser");
 const functionDeclarations = {};
-const systemFunctions = ['print'];
+const systemFunctions = ['print', 'length'];
 class Result {
     constructor(value, type, node) {
         this.value = value;
@@ -55,9 +55,14 @@ class Interpreter {
                 return this.visitWhileStatementNode(node, context);
             case parser_1.NodeType.LiteralBoolean:
                 return this.visitLiteralBooleanNode(node);
+            case parser_1.NodeType.LiteralVector:
+                return this.visitLiteralVectorNode(node, context);
             default:
                 throw new Error(`Cannot visit node of type: ${node.nodeType}`);
         }
+    }
+    visitLiteralVectorNode(node, context) {
+        return new Result([], 'vec', node);
     }
     visitWhileStatementNode(node, context) {
         let result = new Result(undefined, 'undefined', node);
@@ -83,6 +88,18 @@ class Interpreter {
         return this.visitNode(node.expression, context);
     }
     visitVariableNode(node, context) {
+        if (node.index !== undefined) {
+            const indexNode = node.index;
+            if (indexNode instanceof parser_1.LiteralNumberNode) {
+                return context[node.name][parseInt(indexNode.value)];
+            }
+            else if (indexNode instanceof parser_1.VariableNode) {
+                const index = this.visitNode(indexNode, context).value;
+                const vector = context[node.name].value;
+                return new Result(vector[index], 'int', node);
+            }
+            throw new Error(`Invalid index type for variable ${node.name}`);
+        }
         return context[node.name];
     }
     visitBinaryOperationNode(node, context) {
@@ -112,9 +129,22 @@ class Interpreter {
         }
     }
     visitAssignmentNode(node, context) {
-        const value = this.visitNode(node.expression, context);
-        context[node.variable.name] = value;
-        return value;
+        const newValue = this.visitNode(node.expression, context);
+        if (node.variable.index !== undefined) {
+            const currentValue = context[node.variable.name].value;
+            if (node.variable.index instanceof parser_1.LiteralNumberNode) {
+                currentValue[parseInt(node.variable.index.value)] = newValue.value;
+            }
+            else if (node.variable.index instanceof parser_1.VariableNode) {
+                const indexResult = this.visitNode(node.variable.index, context);
+                currentValue[indexResult.value] = newValue.value;
+            }
+            context[node.variable.name] = new Result(currentValue, 'vec', node);
+        }
+        else {
+            context[node.variable.name] = newValue;
+        }
+        return newValue;
     }
     visitVariableDeclarationNode(node, context) {
         if (node.valueNode !== undefined) {
@@ -129,8 +159,7 @@ class Interpreter {
     }
     visitFunctionCallNode(node, parentContext) {
         if (systemFunctions.includes(node.name)) {
-            this.executeSystemFunction(node, parentContext);
-            return undefined;
+            return this.executeSystemFunction(node, parentContext);
         }
         const func = functionDeclarations[node.name];
         if (!func) {
@@ -188,6 +217,18 @@ class Interpreter {
                 const argumentValues = this.resolveFunctionArgumentValues(node.arguments, functionParams, context);
                 const values = argumentValues.map(arg => arg.value.getValue());
                 console.log(...values);
+                break;
+            case 'length':
+                const objectName = node.object;
+                if (objectName === undefined || objectName === null) {
+                    throw new Error(`'length' function must be called on an object`);
+                }
+                const objectNode = context[objectName];
+                if (objectNode.type !== 'vec') {
+                    throw new Error(`'length' function can only be called on vectors`);
+                }
+                const vectorValue = objectNode.getValue();
+                return new Result(vectorValue.length, 'int', node);
         }
     }
 }

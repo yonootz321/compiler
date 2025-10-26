@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.Parser = exports.WhileStatementNode = exports.IfStatementNode = exports.AssignmentNode = exports.ReturnExpressionNode = exports.BinaryOperationNode = exports.VariableNode = exports.VariableDeclarationNode = exports.LiteralBooleanNode = exports.LiteralStringNode = exports.LiteralNumberNode = exports.FunctionCallNode = exports.TypeNode = exports.FunctionBodyNode = exports.FunctionParameterNode = exports.FunctionDeclarationNode = exports.Node = exports.NodeType = void 0;
+exports.Parser = exports.LiteralVectorNode = exports.WhileStatementNode = exports.IfStatementNode = exports.AssignmentNode = exports.ReturnExpressionNode = exports.BinaryOperationNode = exports.VariableNode = exports.VariableDeclarationNode = exports.LiteralBooleanNode = exports.LiteralStringNode = exports.LiteralNumberNode = exports.FunctionCallNode = exports.TypeNode = exports.FunctionBodyNode = exports.FunctionParameterNode = exports.FunctionDeclarationNode = exports.Node = exports.NodeType = void 0;
 const scanner_1 = require("./scanner");
 const builtInFunctionNames = [
     'print',
@@ -21,6 +21,7 @@ var NodeType;
     NodeType["LiteralNumber"] = "LiteralNumber";
     NodeType["LiteralString"] = "LiteralString";
     NodeType["LiteralBoolean"] = "LiteralBoolean";
+    NodeType["LiteralVector"] = "LiteralVector";
     NodeType["ReturnExpression"] = "ReturnExpression";
     NodeType["Assignment"] = "Assignment";
     NodeType["IfStatement"] = "IfStatement";
@@ -84,11 +85,12 @@ class TypeNode extends Node {
 }
 exports.TypeNode = TypeNode;
 class FunctionCallNode extends Node {
-    constructor(name, args) {
+    constructor(name, args, object) {
         super();
         this.nodeType = NodeType.FunctionCall;
         this.name = name;
         this.arguments = args;
+        this.object = object;
     }
 }
 exports.FunctionCallNode = FunctionCallNode;
@@ -128,12 +130,13 @@ class VariableDeclarationNode extends Node {
 }
 exports.VariableDeclarationNode = VariableDeclarationNode;
 class VariableNode extends Node {
-    constructor(name, type, value) {
+    constructor(name, type, value, index) {
         super();
         this.nodeType = NodeType.Variable;
         this.name = name;
         this.type = type;
         this.value = value;
+        this.index = index;
     }
 }
 exports.VariableNode = VariableNode;
@@ -189,6 +192,13 @@ class WhileStatementNode extends Node {
     }
 }
 exports.WhileStatementNode = WhileStatementNode;
+class LiteralVectorNode extends Node {
+    constructor() {
+        super();
+        this.nodeType = NodeType.LiteralVector;
+    }
+}
+exports.LiteralVectorNode = LiteralVectorNode;
 class Parser {
     constructor(scanner) {
         this.scanner = scanner;
@@ -208,7 +218,7 @@ class Parser {
                 return this.parseFunctionDeclaration();
             case scanner_1.TokenType.Identifier:
             case scanner_1.TokenType.Keyword:
-                return this.parseStatement([]);
+                return this.parseStatement(userDefinedVariableNames);
             default:
                 throw new Error(`Unexpected token type: ${token.type} ("${token.value}")`);
         }
@@ -230,6 +240,12 @@ class Parser {
                 }
                 if (this.isVariableName(token, availableVariables)) {
                     const nextToken = this.peek(2);
+                    if (this.isIndexedVariable(token, nextToken, availableVariables)) {
+                        return this.parseIndexedAssignment();
+                    }
+                    if (this.isMethodCall(token, nextToken, availableVariables)) {
+                        return this.parseMethodCall(availableVariables);
+                    }
                     if (!operatorTokens.includes(nextToken.type)) {
                         return this.parseVariable();
                     }
@@ -262,10 +278,47 @@ class Parser {
                 if (this.isVariableDeclaration(token)) {
                     return this.parseVariableDeclaration(availableVariables);
                 }
+                if (this.isVectorLiteral(token)) {
+                    return this.parseVectorLiteral(token);
+                }
                 throw new Error(`Unexpected keyword: "${token.value}"`);
             default:
                 throw new Error(`Unexpected token type in expression: ${token.type} ("${token.value}")`);
         }
+    }
+    parseMethodCall(availableVariables) {
+        const variableToken = this.consumeType(scanner_1.TokenType.Identifier);
+        this.consumeType(scanner_1.TokenType.Dot);
+        const methodToken = this.consumeType(scanner_1.TokenType.Identifier);
+        this.consumeType(scanner_1.TokenType.OpenParen);
+        const args = [];
+        while (this.peek().type !== scanner_1.TokenType.CloseParen) {
+            const argument = this.parseExpression(availableVariables);
+            args.push(argument);
+            if (this.peek().type === scanner_1.TokenType.Comma) {
+                this.consumeType(scanner_1.TokenType.Comma);
+            }
+        }
+        this.consumeType(scanner_1.TokenType.CloseParen);
+        return new FunctionCallNode(methodToken.value, args, variableToken.value);
+    }
+    isMethodCall(token, nextToken, availableVariables) {
+        const nextNextToken = this.peek(3);
+        return this.isVariableName(token, availableVariables)
+            && nextToken.type === scanner_1.TokenType.Dot
+            && nextNextToken.type === scanner_1.TokenType.Identifier;
+    }
+    isIndexedVariable(token, nextToken, availableVariables) {
+        return this.isVariableName(token, availableVariables) && nextToken.type === scanner_1.TokenType.OpenSquare;
+    }
+    parseVectorLiteral(_token) {
+        this.consumeType(scanner_1.TokenType.Keyword);
+        this.consumeType(scanner_1.TokenType.OpenSquare);
+        this.consumeType(scanner_1.TokenType.CloseSquare);
+        return new LiteralVectorNode();
+    }
+    isVectorLiteral(token) {
+        return token.type == scanner_1.TokenType.Keyword && (token.value === 'vec');
     }
     parseWhileStatement(availableVariables) {
         this.consumeType(scanner_1.TokenType.Keyword);
@@ -380,6 +433,12 @@ class Parser {
     }
     parseFactor(availableVariables) {
         if (this.isVariable()) {
+            if (this.peek(2).type === scanner_1.TokenType.Dot) {
+                return this.parseMethodCall(availableVariables);
+            }
+            if (this.peek(2).type === scanner_1.TokenType.OpenSquare) {
+                return this.parseIndexedVariable();
+            }
             return this.parseVariable();
         }
         return this.parseLiteral();
@@ -418,6 +477,41 @@ class Parser {
     parseVariable() {
         const token = this.consumeType(scanner_1.TokenType.Identifier);
         return new VariableNode(token.value, new TypeNode('int'));
+    }
+    parseIndexedVariable() {
+        const nameToken = this.consumeType(scanner_1.TokenType.Identifier);
+        this.consumeType(scanner_1.TokenType.OpenSquare);
+        let indexNode = null;
+        if (this.peek().type === scanner_1.TokenType.Number) {
+            indexNode = this.parseLiteral();
+        }
+        else if (this.peek().type === scanner_1.TokenType.Identifier) {
+            indexNode = this.parseVariable();
+        }
+        else {
+            throw new Error(`Inexpected index for vector ${nameToken.value}`);
+        }
+        this.consumeType(scanner_1.TokenType.CloseSquare);
+        return new VariableNode(nameToken.value, new TypeNode('int'), undefined, indexNode);
+    }
+    parseIndexedAssignment() {
+        const nameToken = this.consumeType(scanner_1.TokenType.Identifier);
+        this.consumeType(scanner_1.TokenType.OpenSquare);
+        let indexNode = null;
+        if (this.peek().type === scanner_1.TokenType.Number) {
+            indexNode = this.parseLiteral();
+        }
+        else if (this.peek().type === scanner_1.TokenType.Identifier) {
+            indexNode = this.parseVariable();
+        }
+        else {
+            throw new Error(`Inexpected index for vector ${nameToken.value}`);
+        }
+        this.consumeType(scanner_1.TokenType.CloseSquare);
+        const variable = new VariableNode(nameToken.value, new TypeNode('int'), undefined, indexNode);
+        this.consumeType(scanner_1.TokenType.Equal);
+        const expression = this.parseExpression([]);
+        return new AssignmentNode(variable, expression);
     }
     parseVariableDeclaration(availableVariables) {
         if (this.peek().type !== scanner_1.TokenType.Keyword || this.peek().value !== 'var') {

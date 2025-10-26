@@ -13,6 +13,8 @@ export enum TokenType {
     CloseParen = 'CloseParen',
     OpenBrace = 'OpenBrace',
     CloseBrace = 'CloseBrace',
+    OpenSquare = 'OpenSquare',
+    CloseSquare = 'CloseSquare',
     EqualEqual = 'EqualEqual',
     Equal = 'Equal',
     Plus = 'Plus',
@@ -21,6 +23,7 @@ export enum TokenType {
     Slash = 'Slash',
     GreaterThan = 'GreaterThan',
     LessThan = 'LessThan',
+    Dot = 'Dot',
     EOF = 'EOF',
 }
 
@@ -38,6 +41,7 @@ const keywords = [
     'while',
     'true',
     'false',
+    'vec',
 ]
     .concat(typeKeywords);
 
@@ -127,6 +131,24 @@ export class Scanner {
                 return new Token(TokenType.CloseBrace, '}');
             }
 
+            // Match open square bracket
+            if (char === '[') {
+                this.pos++;
+                return new Token(TokenType.OpenSquare, '[');
+            }
+
+            // Match close square bracket
+            if (char === ']') {
+                this.pos++;
+                return new Token(TokenType.CloseSquare, ']');
+            }
+
+            // Match dot
+            if (char === '.') {
+                this.pos++;
+                return new Token(TokenType.Dot, '.');
+            }
+
             // Match colon
             if (char === ':') {
                 this.pos++;
@@ -207,9 +229,7 @@ export class Scanner {
                 return new Token(TokenType.Identifier, value);
             }
 
-            console.log('Unexpected character: ', char);
-
-            this.pos++;
+            throw new Error('Unexpected character: ' + char);
         }
         return new Token(TokenType.EOF, "");
     }

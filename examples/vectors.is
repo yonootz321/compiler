@@ -1,0 +1,13 @@
+var a = vec[];
+
+a[0] = 3;
+a[1] = 2;
+a[2] = 5;
+
+var i = 0;
+var sum = 0;
+while (i < a.length()) {
+    sum = sum + a[i];
+    i = i + 1;
+}
+print("sum=", sum);
