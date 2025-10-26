@@ -130,6 +130,10 @@ export class Interpreter {
             case "/":
                 // @ts-ignore Intentionally allowing string and numbers to combine
                 return new Result(left.value / right.value, 'int', node);
+            case ">":
+                return new Result(left.value > right.value, 'bool', node);
+            case "<":
+                return new Result(left.value < right.value, 'bool', node);
             case "==":
                 return new Result(left.value == right.value, 'bool', node);
             default:

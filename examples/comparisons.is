@@ -1,0 +1,13 @@
+function isTall(int height): bool {
+    return height > 170;
+}
+
+
+var a = 5 > 2;
+var b = 25;
+
+print("a=5>2=", a);
+print("b=25");
+print("b>2*3=", b > 2 * 3);
+print("isTall(150)=", isTall(150));
+print("isTall(180)=", isTall(180));

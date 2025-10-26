@@ -23,6 +23,8 @@ var TokenType;
     TokenType["Minus"] = "Minus";
     TokenType["Star"] = "Star";
     TokenType["Slash"] = "Slash";
+    TokenType["GreaterThan"] = "GreaterThan";
+    TokenType["LessThan"] = "LessThan";
     TokenType["EOF"] = "EOF";
 })(TokenType = exports.TokenType || (exports.TokenType = {}));
 const typeKeywords = [
@@ -127,6 +129,14 @@ class Scanner {
             if (char === '/') {
                 this.pos++;
                 return new Token(TokenType.Slash, '/');
+            }
+            if (char === '>') {
+                this.pos++;
+                return new Token(TokenType.GreaterThan, '>');
+            }
+            if (char === '<') {
+                this.pos++;
+                return new Token(TokenType.LessThan, '<');
             }
             if (char === '"') {
                 const start = this.pos + 1;

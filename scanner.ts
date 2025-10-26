@@ -19,6 +19,8 @@ export enum TokenType {
     Minus = 'Minus',
     Star = 'Star',
     Slash = 'Slash',
+    GreaterThan = 'GreaterThan',
+    LessThan = 'LessThan',
     EOF = 'EOF',
 }
 
@@ -164,6 +166,19 @@ export class Scanner {
                 return new Token(TokenType.Slash, '/');
             }
 
+            // Match greater than
+            if (char === '>') {
+                this.pos++;
+                return new Token(TokenType.GreaterThan, '>');
+            }
+
+            // Match less than
+            if (char === '<') {
+                this.pos++;
+                return new Token(TokenType.LessThan, '<');
+            }
+
+            // Match strings
             if (char === '"') {
                 const start = this.pos + 1;
                 let end = this.pos+1;

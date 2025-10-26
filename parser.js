@@ -32,6 +32,8 @@ const operatorTokens = [
     scanner_1.TokenType.Slash,
     scanner_1.TokenType.Equal,
     scanner_1.TokenType.EqualEqual,
+    scanner_1.TokenType.GreaterThan,
+    scanner_1.TokenType.LessThan,
 ];
 const blockStatements = [
     NodeType.IfStatement,
@@ -194,6 +196,7 @@ class Parser {
             case scanner_1.TokenType.Function:
                 return this.parseFunctionDeclaration();
             case scanner_1.TokenType.Identifier:
+            case scanner_1.TokenType.Keyword:
                 return this.parseStatement([]);
             default:
                 throw new Error(`Unexpected token type: ${token.type} ("${token.value}")`);
@@ -307,6 +310,16 @@ class Parser {
             this.consumeType(scanner_1.TokenType.EqualEqual);
             const rightNode = this.parseMathExpression(availableVariables);
             return new BinaryOperationNode(leftNode, new OperatorNode('=='), rightNode);
+        }
+        else if (nextToken.type === scanner_1.TokenType.GreaterThan) {
+            this.consumeType(scanner_1.TokenType.GreaterThan);
+            const rightNode = this.parseMathExpression(availableVariables);
+            return new BinaryOperationNode(leftNode, new OperatorNode('>'), rightNode);
+        }
+        else if (nextToken.type === scanner_1.TokenType.LessThan) {
+            this.consumeType(scanner_1.TokenType.LessThan);
+            const rightNode = this.parseMathExpression(availableVariables);
+            return new BinaryOperationNode(leftNode, new OperatorNode('<'), rightNode);
         }
         return leftNode;
     }

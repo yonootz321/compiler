@@ -91,6 +91,10 @@ class Interpreter {
                 return new Result(left.value * right.value, 'int', node);
             case "/":
                 return new Result(left.value / right.value, 'int', node);
+            case ">":
+                return new Result(left.value > right.value, 'bool', node);
+            case "<":
+                return new Result(left.value < right.value, 'bool', node);
             case "==":
                 return new Result(left.value == right.value, 'bool', node);
             default:
