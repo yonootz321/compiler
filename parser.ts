@@ -25,6 +25,7 @@ export enum NodeType {
     ReturnExpression = 'ReturnExpression',
     Assignment = 'Assignment',
     IfStatement = 'IfStatement',
+    WhileStatement = 'WhileStatement',
 }
 
 const operatorTokens = [
@@ -40,6 +41,7 @@ const operatorTokens = [
 
 const blockStatements = [
     NodeType.IfStatement,
+    NodeType.WhileStatement,
 ];
 
 export class Node {
@@ -236,6 +238,18 @@ export class IfStatementNode extends Node {
     }
 }
 
+export class WhileStatementNode extends Node {
+    condition: Node;
+    body: FunctionBodyNode;
+
+    constructor(condition: Node, body: FunctionBodyNode) {
+        super();
+        this.nodeType = NodeType.WhileStatement;
+        this.condition = condition;
+        this.body = body;
+    }
+}
+
 export class Parser {
     private scanner: Scanner;
 
@@ -312,10 +326,42 @@ export class Parser {
                 if (this.isIfStatement(token)) {
                     return this.parseIfStatement(availableVariables);
                 }
-                return this.parseVariableDeclaration(availableVariables);
+                if (this.isWhileStatement(token)) {
+                    return this.parseWhileStatement(availableVariables);
+                }
+                if (this.isVariableDeclaration(token)) {
+                    return this.parseVariableDeclaration(availableVariables);
+                }
+                throw new Error(`Unexpected keyword: "${token.value}"`);
             default:
                 throw new Error(`Unexpected token type in expression: ${token.type} ("${token.value}")`);
         }
+    }
+
+    private parseWhileStatement(availableVariables: Array<string>): Node {
+        this.consumeType(TokenType.Keyword); // consume 'while'
+        this.consumeType(TokenType.OpenParen);
+        const condition = this.parseExpression(availableVariables);
+        this.consumeType(TokenType.CloseParen);
+        const bodyStatements: Node[] = [];
+        this.consumeType(TokenType.OpenBrace);
+        while (this.peek().type !== TokenType.CloseBrace) {
+            const statement = this.parseStatement(availableVariables);
+            bodyStatements.push(statement);
+        }
+        this.consumeType(TokenType.CloseBrace);
+        return new WhileStatementNode(condition, new FunctionBodyNode(bodyStatements));
+    }
+
+    private isWhileStatement(token: Token): boolean {
+        return token.type == TokenType.Keyword && (token.value === 'while');
+    }
+
+    private isVariableDeclaration(token: Token): boolean {
+        if (token.type == TokenType.Keyword && token.value === 'var') {
+            return true;
+        }
+        return false;
     }
 
     private parseBooleanLiteral(): LiteralBooleanNode {

@@ -13,7 +13,8 @@ import {
     ReturnExpressionNode, 
     TypeNode, 
     VariableDeclarationNode, 
-    VariableNode
+    VariableNode,
+    WhileStatementNode
 } from "./parser";
 import { Node } from "./parser";
 
@@ -81,11 +82,22 @@ export class Interpreter {
                 return this.visitReturnExpressionNode(node as ReturnExpressionNode, context);
             case NodeType.IfStatement:
                 return this.visitIfStatementNode(node as IfStatementNode, context);
+            case NodeType.WhileStatement:
+                return this.visitWhileStatementNode(node as WhileStatementNode, context);
             case NodeType.LiteralBoolean:
                 return this.visitLiteralBooleanNode(node as LiteralBooleanNode);
             default:
                 throw new Error(`Cannot visit node of type: ${node.nodeType}`);
         }
+    }
+
+    visitWhileStatementNode(node: WhileStatementNode, context: Context): Result {
+        let result = new Result(undefined, 'undefined', node);
+        while (this.visitNode(node.condition, context).value === true) {
+            const results = node.body.statements.map(n => this.visitNode(n, context));
+            result = results[results.length - 1];
+        }
+        return result;
     }
 
     visitLiteralBooleanNode(node: LiteralBooleanNode): Result {

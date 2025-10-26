@@ -51,11 +51,21 @@ class Interpreter {
                 return this.visitReturnExpressionNode(node, context);
             case parser_1.NodeType.IfStatement:
                 return this.visitIfStatementNode(node, context);
+            case parser_1.NodeType.WhileStatement:
+                return this.visitWhileStatementNode(node, context);
             case parser_1.NodeType.LiteralBoolean:
                 return this.visitLiteralBooleanNode(node);
             default:
                 throw new Error(`Cannot visit node of type: ${node.nodeType}`);
         }
+    }
+    visitWhileStatementNode(node, context) {
+        let result = new Result(undefined, 'undefined', node);
+        while (this.visitNode(node.condition, context).value === true) {
+            const results = node.body.statements.map(n => this.visitNode(n, context));
+            result = results[results.length - 1];
+        }
+        return result;
     }
     visitLiteralBooleanNode(node) {
         return new Result(node.value, 'bool', node);

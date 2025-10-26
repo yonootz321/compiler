@@ -35,6 +35,7 @@ const keywords = [
     'function',
     'return',
     'if',
+    'while',
     'true',
     'false',
 ]

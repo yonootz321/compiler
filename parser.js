@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.Parser = exports.IfStatementNode = exports.AssignmentNode = exports.ReturnExpressionNode = exports.BinaryOperationNode = exports.VariableNode = exports.VariableDeclarationNode = exports.LiteralBooleanNode = exports.LiteralStringNode = exports.LiteralNumberNode = exports.FunctionCallNode = exports.TypeNode = exports.FunctionBodyNode = exports.FunctionParameterNode = exports.FunctionDeclarationNode = exports.Node = exports.NodeType = void 0;
+exports.Parser = exports.WhileStatementNode = exports.IfStatementNode = exports.AssignmentNode = exports.ReturnExpressionNode = exports.BinaryOperationNode = exports.VariableNode = exports.VariableDeclarationNode = exports.LiteralBooleanNode = exports.LiteralStringNode = exports.LiteralNumberNode = exports.FunctionCallNode = exports.TypeNode = exports.FunctionBodyNode = exports.FunctionParameterNode = exports.FunctionDeclarationNode = exports.Node = exports.NodeType = void 0;
 const scanner_1 = require("./scanner");
 const builtInFunctionNames = [
     'print',
@@ -24,6 +24,7 @@ var NodeType;
     NodeType["ReturnExpression"] = "ReturnExpression";
     NodeType["Assignment"] = "Assignment";
     NodeType["IfStatement"] = "IfStatement";
+    NodeType["WhileStatement"] = "WhileStatement";
 })(NodeType = exports.NodeType || (exports.NodeType = {}));
 const operatorTokens = [
     scanner_1.TokenType.Plus,
@@ -37,6 +38,7 @@ const operatorTokens = [
 ];
 const blockStatements = [
     NodeType.IfStatement,
+    NodeType.WhileStatement,
 ];
 class Node {
 }
@@ -178,6 +180,15 @@ class IfStatementNode extends Node {
     }
 }
 exports.IfStatementNode = IfStatementNode;
+class WhileStatementNode extends Node {
+    constructor(condition, body) {
+        super();
+        this.nodeType = NodeType.WhileStatement;
+        this.condition = condition;
+        this.body = body;
+    }
+}
+exports.WhileStatementNode = WhileStatementNode;
 class Parser {
     constructor(scanner) {
         this.scanner = scanner;
@@ -245,10 +256,39 @@ class Parser {
                 if (this.isIfStatement(token)) {
                     return this.parseIfStatement(availableVariables);
                 }
-                return this.parseVariableDeclaration(availableVariables);
+                if (this.isWhileStatement(token)) {
+                    return this.parseWhileStatement(availableVariables);
+                }
+                if (this.isVariableDeclaration(token)) {
+                    return this.parseVariableDeclaration(availableVariables);
+                }
+                throw new Error(`Unexpected keyword: "${token.value}"`);
             default:
                 throw new Error(`Unexpected token type in expression: ${token.type} ("${token.value}")`);
         }
+    }
+    parseWhileStatement(availableVariables) {
+        this.consumeType(scanner_1.TokenType.Keyword);
+        this.consumeType(scanner_1.TokenType.OpenParen);
+        const condition = this.parseExpression(availableVariables);
+        this.consumeType(scanner_1.TokenType.CloseParen);
+        const bodyStatements = [];
+        this.consumeType(scanner_1.TokenType.OpenBrace);
+        while (this.peek().type !== scanner_1.TokenType.CloseBrace) {
+            const statement = this.parseStatement(availableVariables);
+            bodyStatements.push(statement);
+        }
+        this.consumeType(scanner_1.TokenType.CloseBrace);
+        return new WhileStatementNode(condition, new FunctionBodyNode(bodyStatements));
+    }
+    isWhileStatement(token) {
+        return token.type == scanner_1.TokenType.Keyword && (token.value === 'while');
+    }
+    isVariableDeclaration(token) {
+        if (token.type == scanner_1.TokenType.Keyword && token.value === 'var') {
+            return true;
+        }
+        return false;
     }
     parseBooleanLiteral() {
         const token = this.consumeType(scanner_1.TokenType.Keyword);
